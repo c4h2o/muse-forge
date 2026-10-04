@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Local TLS material — never commit keys or certs
+*.pem
+*.key
+*.crt
+.env
+
+# Test artefacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
