@@ -12,10 +12,17 @@
 #     cardputer-adv / home-assistant-voice 四块板都用0）
 #   - 该按键 active low + 内部上拉（devices/AGENTS.md:100）
 #
-# 硬件（原理图确认）：
-#   ESP32-S3-WROOM-1-N16R8，16 MB flash / 8 MB PSRAM
-#   240x240 ST7789（SPI）| INMP441 + MAX98357A | 三应用键
-#   按键：GPIO0 = 唤醒(SW3) = BOOT，GPIO39 = 音量+，GPIO40 = 音量-
+# 硬件（原理图确认，叠装式双板）：
+#   底板：ESP32-S3-WROOM-1-N16R8（16MB/8MB PSRAM）| I2C 彩灯
+#         XL-4009(SCL=GPIO8/SDA=GPIO9) | BOOT=GPIO0 | RST→EN
+#         CH343P USB 串口 | XL6009 升压 | 蜂鸣器 | USB-OTG(GPIO19/20)
+#   扩展板：240×240 ST7789（CS=10/BLK=11/SCL1=12/SDA1=13/RES=14）
+#           INMP441（WS=4/SCK=5/SD=6）| MAX98357A（DIN=7/BCLK=15/LRC=16）
+#           三应用键：音量+=39 / 音量-=40 / 唤醒=0
+#
+#   GPIO 冲突检查：**零冲突**。仅 GPIO0 两板共用，且底板 BOOT 与扩展板
+#   唤醒是**同一物理键**（叠装后同焊盘），这正是 Andy 确认的信息。
+#   本形态只用 GPIO0，屏/音频/灯全部不碰，所以两板都能正常工作。
 
 # ---- 目标与存储 --------------------------------------------------------
 CONFIG_IDF_TARGET="esp32s3"
@@ -82,10 +89,6 @@ CONFIG_HOMEHUB_LED_BACKEND_NONE=y
 # 情况 B：改固件加 I2C RGB backend。在 main/led_status.c 新增一个 backend，
 #   用 I2C 写 XL-4009 的 PWM 寄存器映射到颜色。工作量约半天。
 #   （需先加 Kconfig 选项与代码，本仓库暂无）
-#
-# 情况 C：**先确认你手上是哪块板** —— 这张原理图（左下只有 BOOT/RST 两键、
-#   I2C RGB、XL6009 升压、CH343P 串口）与照片上那块（240x240 ST7789、
-#   INMP441+MAX98357A、三个应用键）不是同一块硬件，GPIO 互不兼容。
 
 # ---- 内存与网络 --------------------------------------------------------
 # 与 sdkconfig.defaults 一致：把 mbedtls 分配与 Wi-Fi 缓冲放PSRAM。
