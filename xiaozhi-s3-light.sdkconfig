@@ -1,0 +1,90 @@
+# 小智 ESP32-S3 N16R8 —— Muse 固件板级配置（Light 形态）
+#
+# Stage 0/1 用：Light 形态（状态灯 + 按键），不碰屏和音频。
+# 目标：验证编译、烧录、配对、连上自建muse-forge 服务端。
+#
+# 用法：
+#   idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;devices/sdkconfig.xiaozhi-s3-light" build
+#
+# 已核对的上游事实（muse-gadget-sdk @ 693cde9）：
+#   - 16 MB 板用 partitions_muse.csv（devices/AGENTS.md:75）
+#   - CONFIG_HOMEHUB_BUTTON_GPIO=0 是官方用法（ideaspark / box-3 /
+#     cardputer-adv / home-assistant-voice 四块板都用0）
+#   - 该按键 active low + 内部上拉（devices/AGENTS.md:100）
+#
+# 硬件（原理图确认）：
+#   ESP32-S3-WROOM-1-N16R8，16 MB flash / 8 MB PSRAM
+#   240x240 ST7789（SPI）| INMP441 + MAX98357A | 三应用键
+#   按键：GPIO0 = 唤醒(SW3) = BOOT，GPIO39 = 音量+，GPIO40 = 音量-
+
+# ---- 目标与存储 --------------------------------------------------------
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+
+# ---- 分区表 ------------------------------------------------------------
+# sdkconfig.defaults 用的是 partitions.csv，它在8 MB 布局里结束于0x422000
+# （4.13 MB）。16 MB 板沿用它**不会出错**——分区表只按需划定，剩余
+# 11.9 MB 闲置。官方 16 MB Light 板（ideaspark、home-assistant-voice）
+# 就是这么做的。
+#
+# 但你会失去 4 MB 的 OTA 槽（仍是 2 MB）。想用上 16 MB 就取消下面这行：
+# CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_muse.csv"
+#
+# ⚠️ 切分区表是**重刷边界**：旧表刷的固件无法跨表 OTA。且
+#    prod_data/prod_bak 固定在 0x420000/0x421000（制造阶段写入，不可动）。
+#    首次刷机前决定好，之后别改。
+
+# ---- PSRAM（N16R8的 R8 = 8 MB）-----------------------------------------
+# OCT 模式 + 80 MHz，与aipi 板一致。ESP32-S3 的 PSRAM 以 octal 封装为多。
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
+CONFIG_SPIRAM_RODATA=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+# 上游 sdkconfig.defaults 里有注释说首启 PSRAM memtest 偶发失败，
+# 3/262144，故跳过。与其它板一致。
+# CONFIG_SPIRAM_IGNORE_NOTFOUND is not set
+
+# ---- 蓝牙内存放PSRAM（NimBLE 在 8 MB PSRAM 上更稳）---------------------
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+
+# ---- 按键 --------------------------------------------------------------
+# GPIO0 = 「唤醒」键，同时是 BOOT。四块官方板都用 0。
+# 注意：上电或按 RESET 时不要按住此键，否则 ESP32-S3 会进download 模式
+# （GPIO0 是 strapping 引脚，运行期按下则无影响）。
+CONFIG_HOMEHUB_BUTTON_GPIO=0
+
+# ---- 状态灯 ------------------------------------------------------------
+# ⚠️ 待你确认后二选一：
+#
+# 情况 A：你的彩虹灯是 WS2812 之类单线可寻址 RGB（只有一根数据线）
+#   → 用下面这行（ESP32-C5 DevKitC-1 同款，板载可寻址 RGB）
+#   CONFIG_HOMEHUB_LED_BACKEND_DEVKIT_GPIO27=y
+#   ⚠️ 该 backend 硬编码 GPIO27。若你的灯数据线不是 GPIO27，不要用。
+#
+# 情况 B：你的彩虹灯是普通三通道 PWM RGB（R/G/B 三根线）
+#   → 取消下面这行注释，用 Muse Home Link 的通用实现
+#   CONFIG_HOMEHUB_LED_BACKEND_PWM_RGB=y
+#
+# 情况 C：不确定 / 先不接灯
+#   → 保持下面的 NONE，编译最稳，串口日志一样能看状态
+CONFIG_HOMEHUB_LED_BACKEND_NONE=y
+
+# ---- 内存与网络 --------------------------------------------------------
+# 与 sdkconfig.defaults 一致：把 mbedtls 分配与 Wi-Fi 缓冲放PSRAM。
+# 16 MB flash + 8 MB PSRAM 是本仓库的宽裕配置。
+CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC=n
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# ---- 休眠 --------------------------------------------------------------
+# 无屏无音频时开tickless 省电（配 Light 形态主要为了跑通，不是续航）
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
