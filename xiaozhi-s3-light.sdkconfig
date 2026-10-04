@@ -61,20 +61,31 @@ CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
 CONFIG_HOMEHUB_BUTTON_GPIO=0
 
 # ---- 状态灯 ------------------------------------------------------------
-# ⚠️ 待你确认后二选一：
+# ⚠️⚠️ 两个官方 backend 都不适用 —— 查原理图后确认。
 #
-# 情况 A：你的彩虹灯是 WS2812 之类单线可寻址 RGB（只有一根数据线）
-#   → 用下面这行（ESP32-C5 DevKitC-1 同款，板载可寻址 RGB）
-#   CONFIG_HOMEHUB_LED_BACKEND_DEVKIT_GPIO27=y
-#   ⚠️ 该 backend 硬编码 GPIO27。若你的灯数据线不是 GPIO27，不要用。
+# 你的彩虹灯是 **I2C 驱动的 RGB 芯片**：丝印 "1080A / TYPE-C 3.5M RGBP"，
+# 型号 XL-4009-I2C（备选 XL-4009-0/1/2/128/RGB/CT1）。走 SCL=GPIO8 /
+# SDA=GPIO9 两根线，D1/D2/D3 三色由I2C 寄存器控制，
+# **不是三个独立 PWM 通道**。
 #
-# 情况 B：你的彩虹灯是普通三通道 PWM RGB（R/G/B 三根线）
-#   → 取消下面这行注释，用 Muse Home Link 的通用实现
-#   CONFIG_HOMEHUB_LED_BACKEND_PWM_RGB=y
+# 而两个可选 backend 都不匹配：
+#   PWM_RGB      → LEDC 三通道 PWM，引脚**硬编码**在 led_status.c:63-68
+#                  （量产 24/25/26，DVT 2/3/6），**不在 Kconfig 里，改不了**
+#   DEVKIT_GPIO27 → 单线可寻址（WS2812 式），协议也不对
 #
-# 情况 C：不确定 / 先不接灯
-#   → 保持下面的 NONE，编译最稳，串口日志一样能看状态
+# 三选一：
+#
+# 情况 A（推荐，最省）：保持 NONE。串口日志一样能看全部状态。
+#   编译最稳，先把协议和配对跑通，灯留到 UI 形态之后。
 CONFIG_HOMEHUB_LED_BACKEND_NONE=y
+#
+# 情况 B：改固件加 I2C RGB backend。在 main/led_status.c 新增一个 backend，
+#   用 I2C 写 XL-4009 的 PWM 寄存器映射到颜色。工作量约半天。
+#   （需先加 Kconfig 选项与代码，本仓库暂无）
+#
+# 情况 C：**先确认你手上是哪块板** —— 这张原理图（左下只有 BOOT/RST 两键、
+#   I2C RGB、XL6009 升压、CH343P 串口）与照片上那块（240x240 ST7789、
+#   INMP441+MAX98357A、三个应用键）不是同一块硬件，GPIO 互不兼容。
 
 # ---- 内存与网络 --------------------------------------------------------
 # 与 sdkconfig.defaults 一致：把 mbedtls 分配与 Wi-Fi 缓冲放PSRAM。
