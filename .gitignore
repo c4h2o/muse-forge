@@ -24,6 +24,13 @@ htmlcov/
 Thumbs.db
 
 # Internal working notes, kept outside the repo. These are one-off records of
-# local decisions and setup steps -- useful to me, noise to anyone else.
+# local decisions, environment details and setup steps -- useful to me, noise
+# to anyone else.
 GITHUB-SETUP.md
 RELEASE-CHECKLIST.md
+HARDWARE-ASSESSMENT-xiaozhi-s3.md
+HARDWARE-VERIFICATION.md
+
+# The 16 MB flash dump of a paired device, and anything that could identify it
+*.bin
+esptool-backup-*

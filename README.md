@@ -207,6 +207,24 @@ This is a proof of concept and it is honest about its limits:
   box is not a sane default.
 - **State is in memory.** Restart and every pairing is gone.
 
+## Porting to your own board
+
+[`docs/HARDWARE-NOTES.md`](docs/HARDWARE-NOTES.md) covers what it takes to run
+this firmware on a board Meta does not list, based on an ESP32-S3 N16R8:
+
+- which `muse_board_t` constraints are already met by a generic S3 board
+- why `CONFIG_HOMEHUB_BUTTON_GPIO=0` is upstream practice, not a hack
+- how to check a stacked board pair for GPIO conflicts
+- **flashing Muse is a layout change, not an app overwrite** — dump the
+  partition table first, keep a backup
+- why neither upstream LED backend fits an I2C RGB LED
+- the audio architecture gap (`muse_board_t` expects a codec chip; bare I2S
+  parts need a custom `esp_codec_dev` data interface)
+
+There is also a `xiaozhi-s3-light.sdkconfig` overlay in this repo — 22 symbols,
+21 cross-checked against official 16 MB ESP32-S3 overlays — as a starting
+point for a no-display, no-audio bring-up.
+
 ## License
 
 Apache-2.0, matching the Muse SDK. `muse-forge/` is my own work; it imports

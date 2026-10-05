@@ -230,5 +230,6 @@ is the better buy today.
    DevKitC-1 is the low-friction start. Reports on what the firmware does
    against a non-Meta endpoint would be genuinely useful.
 
-Full details, the board dumps and the hardware notes are in the repo. MIT/Apache licensing questions,
-open an issue and I will answer.
+Full details, including the GPIO map, the partition dump and the
+`docs/HARDWARE-NOTES.md` porting guide, are in the repo. MIT/Apache licensing
+questions, open an issue and I will answer.
