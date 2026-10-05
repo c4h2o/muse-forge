@@ -1,51 +1,59 @@
-# 小智 ESP32-S3 N16R8 —— Muse 固件板级配置（Light 形态）
+# xiaozhi ESP32-S3 N16R8 — Muse board config (Light build)
 #
-# Stage 0/1 用：Light 形态（状态灯 + 按键），不碰屏和音频。
-# 目标：验证编译、烧录、配对、连上自建muse-forge 服务端。
+# Stage 0/1: Light build (status LED + one button), no display and no audio.
+# Goal: prove it compiles, flashes, pairs, and reaches a self-hosted
+# muse-forge server.
 #
-# 用法：
+# Usage:
 #   idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;devices/sdkconfig.xiaozhi-s3-light" build
 #
-# 已核对的上游事实（muse-gadget-sdk @ 693cde9）：
-#   - 16 MB 板用 partitions_muse.csv（devices/AGENTS.md:75）
-#   - CONFIG_HOMEHUB_BUTTON_GPIO=0 是官方用法（ideaspark / box-3 /
-#     cardputer-adv / home-assistant-voice 四块板都用0）
-#   - 该按键 active low + 内部上拉（devices/AGENTS.md:100）
+# Upstream facts checked against muse-gadget-sdk @ 693cde9:
+#   - 16 MB boards use partitions_muse.csv (devices/AGENTS.md:75)
+#   - CONFIG_HOMEHUB_BUTTON_GPIO=0 is upstream practice -- ideaspark,
+#     espressif-box-3, cardputer-adv and home-assistant-voice all set it
+#   - that button is active low with an internal pull-up
+#     (devices/AGENTS.md:100)
 #
-# 硬件（原理图确认，叠装式双板）：
-#   底板：ESP32-S3-WROOM-1-N16R8（16MB/8MB PSRAM）| I2C 彩灯
-#         XL-4009(SCL=GPIO8/SDA=GPIO9) | BOOT=GPIO0 | RST→EN
-#         CH343P USB 串口 | XL6009 升压 | 蜂鸣器 | USB-OTG(GPIO19/20)
-#   扩展板：240×240 ST7789（CS=10/BLK=11/SCL1=12/SDA1=13/RES=14）
-#           INMP441（WS=4/SCK=5/SD=6）| MAX98357A（DIN=7/BCLK=15/LRC=16）
-#           三应用键：音量+=39 / 音量-=40 / 唤醒=0
+# Hardware (from the schematics, a stacked pair):
+#   Bottom: ESP32-S3-WROOM-1-N16R8 (16 MB flash / 8 MB PSRAM), I2C RGB LED
+#           (XL-4009 on SCL=GPIO8 / SDA=GPIO9), BOOT on GPIO0, RST to EN,
+#           CH343P USB-serial, XL6009 boost converter, passive buzzer,
+#           USB-OTG on GPIO19/20
+#   Top:    240x240 ST7789 (CS=10 BLK=11 SCL1=12 SDA1=13 RES=14),
+#           INMP441 (WS=4 SCK=5 SD=6), MAX98357A (DIN=7 BCLK=15 LRC=16),
+#           three app keys: volume+ = 39, volume- = 40, wake = 0
 #
-#   GPIO 冲突检查：**零冲突**。仅 GPIO0 两板共用，且底板 BOOT 与扩展板
-#   唤醒是**同一物理键**（叠装后同焊盘），这正是 Andy 确认的信息。
-#   本形态只用 GPIO0，屏/音频/灯全部不碰，所以两板都能正常工作。
+#   GPIO conflicts: none. GPIO0 is the only overlap between the two boards,
+#   and it is the same physical key -- the bottom board's BOOT switch and the
+#   top board's wake button share one pad. This build only uses GPIO0 and
+#   touches neither the display, the audio nor the LED, so both boards work.
 
-# ---- 目标与存储 --------------------------------------------------------
+# ---- Target and flash ------------------------------------------------------
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 
-# ---- 分区表 ------------------------------------------------------------
-# sdkconfig.defaults 用的是 partitions.csv，它在8 MB 布局里结束于0x422000
-# （4.13 MB）。16 MB 板沿用它**不会出错**——分区表只按需划定，剩余
-# 11.9 MB 闲置。官方 16 MB Light 板（ideaspark、home-assistant-voice）
-# 就是这么做的。
+# ---- Partition table -------------------------------------------------------
+# sdkconfig.defaults points at partitions.csv, which ends at 0x422000
+# (4.13 MB) in the 8 MB layout. On a 16 MB board that is harmless -- a
+# partition table only carves out what it needs and the remaining 11.9 MB
+# just sits unallocated. The official 16 MB Light boards (ideaspark,
+# home-assistant-voice) do exactly this.
 #
-# 但你会失去 4 MB 的 OTA 槽（仍是 2 MB）。想用上 16 MB 就取消下面这行：
+# The cost is 2 MB OTA slots instead of 4 MB. To use the full 16 MB,
+# uncomment the line below.
 # CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_muse.csv"
 #
-# ⚠️ 切分区表是**重刷边界**：旧表刷的固件无法跨表 OTA。且
-#    prod_data/prod_bak 固定在 0x420000/0x421000（制造阶段写入，不可动）。
-#    首次刷机前决定好，之后别改。
+# WARNING: switching partition tables is a re-flash boundary. Firmware
+# flashed with the old table cannot OTA across the change, and prod_data /
+# prod_bak sit at fixed offsets (0x420000 / 0x421000) written during
+# manufacturing. Decide before the first flash, then leave it alone.
 
-# ---- PSRAM（N16R8的 R8 = 8 MB）-----------------------------------------
-# OCT 模式 + 80 MHz，与aipi 板一致。ESP32-S3 的 PSRAM 以 octal 封装为多。
+# ---- PSRAM (the "R8" in N16R8 means 8 MB) ---------------------------------
+# Octal mode at 80 MHz, matching the aipi board. ESP32-S3 PSRAM parts are
+# usually octal-packaged.
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
@@ -54,51 +62,57 @@ CONFIG_SPIRAM_RODATA=y
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
-# 上游 sdkconfig.defaults 里有注释说首启 PSRAM memtest 偶发失败，
-# 3/262144，故跳过。与其它板一致。
+# Upstream sdkconfig.defaults notes an intermittent PSRAM memtest failure on
+# first boot (3/262144), so the test is skipped. Same as the other boards.
 # CONFIG_SPIRAM_IGNORE_NOTFOUND is not set
 
-# ---- 蓝牙内存放PSRAM（NimBLE 在 8 MB PSRAM 上更稳）---------------------
+# ---- Bluetooth allocations in PSRAM ---------------------------------------
+# NimBLE is steadier with 8 MB of PSRAM available.
 CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
 
-# ---- 按键 --------------------------------------------------------------
-# GPIO0 = 「唤醒」键，同时是 BOOT。四块官方板都用 0。
-# 注意：上电或按 RESET 时不要按住此键，否则 ESP32-S3 会进download 模式
-# （GPIO0 是 strapping 引脚，运行期按下则无影响）。
+# ---- Button ---------------------------------------------------------------
+# GPIO0 is the wake button, which is also BOOT. Four official boards set 0.
+#
+# Caveat: do not hold this button while powering on or pressing RESET, or
+# the ESP32-S3 enters download mode -- GPIO0 is a strapping pin. Pressing it
+# while the firmware is running is harmless.
 CONFIG_HOMEHUB_BUTTON_GPIO=0
 
-# ---- 状态灯 ------------------------------------------------------------
-# ⚠️⚠️ 两个官方 backend 都不适用 —— 查原理图后确认。
+# ---- Status LED -----------------------------------------------------------
+# Neither upstream backend fits this board.
 #
-# 你的彩虹灯是 **I2C 驱动的 RGB 芯片**：丝印 "1080A / TYPE-C 3.5M RGBP"，
-# 型号 XL-4009-I2C（备选 XL-4009-0/1/2/128/RGB/CT1）。走 SCL=GPIO8 /
-# SDA=GPIO9 两根线，D1/D2/D3 三色由I2C 寄存器控制，
-# **不是三个独立 PWM 通道**。
+# The rainbow LED is an I2C RGB part: silkscreen "1080A / TYPE-C 3.5M RGBP",
+# part XL-4009-I2C (alternatives: XL-4009-0/1/2/128/RGB/CT1). It sits on
+# SCL=GPIO8 / SDA=GPIO9, and D1/D2/D3 are I2C register writes rather than
+# three separate PWM channels.
 #
-# 而两个可选 backend 都不匹配：
-#   PWM_RGB      → LEDC 三通道 PWM，引脚**硬编码**在 led_status.c:63-68
-#                  （量产 24/25/26，DVT 2/3/6），**不在 Kconfig 里，改不了**
-#   DEVKIT_GPIO27 → 单线可寻址（WS2812 式），协议也不对
+# So the two available backends both mismatch:
+#   PWM_RGB       -> three LEDC PWM channels on pins hardcoded in
+#                     main/led_status.c:63-68 (24/25/26 on production boards,
+#                     2/3/6 on DVT). These are compile-time macros, not
+#                     Kconfig symbols, so an overlay cannot change them.
+#   DEVKIT_GPIO27 -> single-wire addressable (WS2812-style). Wrong protocol.
 #
-# 三选一：
+# Three options:
 #
-# 情况 A（推荐，最省）：保持 NONE。串口日志一样能看全部状态。
-#   编译最稳，先把协议和配对跑通，灯留到 UI 形态之后。
+# A (recommended, least work): keep NONE below. The serial log reports the
+#   same state machine either way, so nothing is lost during bring-up.
 CONFIG_HOMEHUB_LED_BACKEND_NONE=y
 #
-# 情况 B：改固件加 I2C RGB backend。在 main/led_status.c 新增一个 backend，
-#   用 I2C 写 XL-4009 的 PWM 寄存器映射到颜色。工作量约半天。
-#   （需先加 Kconfig 选项与代码，本仓库暂无）
+# B: add an I2C RGB backend to the firmware -- a new backend in
+#   main/led_status.c that writes the XL-4009 PWM registers. About half a
+#   day. (Needs a new Kconfig option and code; this repo has neither yet.)
 
-# ---- 内存与网络 --------------------------------------------------------
-# 与 sdkconfig.defaults 一致：把 mbedtls 分配与 Wi-Fi 缓冲放PSRAM。
-# 16 MB flash + 8 MB PSRAM 是本仓库的宽裕配置。
+# ---- Memory and network ---------------------------------------------------
+# Consistent with sdkconfig.defaults: put mbedTLS allocations and the Wi-Fi
+# buffers in PSRAM. 16 MB flash plus 8 MB PSRAM is the roomy configuration.
 CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC=n
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 
-# ---- 休眠 --------------------------------------------------------------
-# 无屏无音频时开tickless 省电（配 Light 形态主要为了跑通，不是续航）
+# ---- Sleep ----------------------------------------------------------------
+# Tickless helps with no display and no audio. The Light build is about
+# proving the path works, not about battery life.
 CONFIG_PM_ENABLE=y
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
