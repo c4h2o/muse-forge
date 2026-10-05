@@ -6,7 +6,7 @@ ESP32 running Meta's unmodified firmware pairs with it, completes the Noise XX
 handshake, registers, and exchanges messages. Verified end to end against
 Meta's own client code.
 
-GitHub: *(link to be added)* · Apache-2.0
+GitHub: https://github.com/c4h2o/muse-forge · Apache-2.0
 
 ---
 
@@ -64,6 +64,45 @@ RESULT: all checks passed -- the server is byte-compatible
 
 Not done: the L3 home-network tunnel (the stream is accepted but not routed),
 BLE pairing, and any real LLM behind the agent seam.
+
+## Hardware: verified on a real board, and one surprise
+
+I ran this against a physical ESP32-S3 N16R8 (the xiaozhi dev board — an
+ESP32-S3-WROOM-1 with a 240x240 ST7789 on SPI, INMP441 mic and MAX98357A
+amp, on a stacked bottom board carrying an I2C RGB LED, a CH343P USB-serial
+bridge and an XL6009 boost converter).
+
+`esptool flash_id` confirms what the silkscreen claims:
+
+```
+Chip type:    ESP32-S3 (QFN56) revision v0.2
+Features:     Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz,
+              Embedded PSRAM 8MB (AP_3v3)
+Flash:        Detected 16MB / quad 4 data lines / 3.3V
+```
+
+Two findings worth passing on:
+
+**The two schematics are one stacked pair, and the GPIOs do not conflict.**
+The only overlap is GPIO0, and it is the same physical key — the bottom
+board wires its BOOT switch there and the top board wires its wake button to
+the same pad. That is worth knowing if you assumed one board ID per
+schematic.
+
+**Flashing Muse is a layout change, not an app overwrite.** Dumping the
+running xiaozhi partition table shows `ota_0` spanning `0x100000-0x700000`,
+which is exactly where Muse expects `prod_data`/`prod_bak` at `0x420000`.
+So Muse needs a full erase, and keeping a pre-flash backup is what makes
+that reversible. Its table also sits at `0x8000` where Muse's is at
+`0x10000`.
+
+Also worth knowing before you plan a port: the rainbow LED on that board is
+an XL-4009-I2C part on SCL/SDA, so **neither upstream LED backend fits**.
+`PWM_RGB` drives LEDC channels on pins hardcoded at `led_status.c:63-68`
+(24/25/26 production, 2/3/6 DVT) — compile-time macros, not Kconfig symbols,
+so an overlay cannot change them. `LED_BACKEND_NONE` is the only safe
+setting without writing a new backend. The serial log reports the same state
+machine either way.
 
 ## Four gotchas that cost me the most time
 
@@ -165,8 +204,10 @@ is the better buy today.
 
 ## Status and honesty about limits
 
-- Verified against Meta's **Linux client** on hardware I don't have. The ESP32
-  has not been flashed yet — the protocol layer is proven, the device is not.
+- The protocol is verified against Meta's own **Linux client** on real
+  hardware — the board section above is measured, not assumed. But the
+  **ESP32 has not been flashed with Muse firmware yet**, so the device-side
+  port is unproven.
 - The tunnel (`/link-tunnel`) is accepted and left hanging. It needs mDNS
   discovery plus NAPT.
 - `link.invoke` **executes nothing** by design. The handler refuses every
@@ -177,13 +218,17 @@ is the better buy today.
 
 ## What I'd like help with
 
-1. **Has anyone flashed the ESP32 side?** The `esp32/README.md` wants ESP-IDF
-   exactly v6.0.1 and a board — the C5 DevKitC-1 is the low-friction start.
-   Reports on what the firmware does against a non-Meta endpoint would be
-   genuinely useful.
-2. **BLE pairing.** The real unlock for this project.
+1. **ESP-IDF on Windows.** Meta's `esp32/README.md` names macOS and Linux
+   only, and `tools/board.sh` is bash. `idf.py` should be cross-platform, so
+   this is probably just a docs gap, but I would like it confirmed before
+   committing to a porting effort.
+2. **BLE pairing.** The real unlock for this project, and the part I have
+   not touched.
 3. **Wyoming interop.** If the tunnel could carry audio to a local Whisper +
    Piper pipeline, this becomes a much more useful HA satellite.
+4. **Anyone with a Muse-compatible board who has flashed it** — the C5
+   DevKitC-1 is the low-friction start. Reports on what the firmware does
+   against a non-Meta endpoint would be genuinely useful.
 
-Repo and full details in the link above. MIT/Apache licensing questions,
-open an issue and I'll answer.
+Full details, the board dumps and the hardware notes are in the repo. MIT/Apache licensing questions,
+open an issue and I will answer.
