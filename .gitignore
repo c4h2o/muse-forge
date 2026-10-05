@@ -22,3 +22,8 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Internal working notes, kept outside the repo. These are one-off records of
+# local decisions and setup steps -- useful to me, noise to anyone else.
+GITHUB-SETUP.md
+RELEASE-CHECKLIST.md
